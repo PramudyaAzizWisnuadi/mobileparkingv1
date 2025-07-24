@@ -330,6 +330,19 @@ export default function PrinterStatusScreen() {
         </View>
       </View>
 
+      {/* Settings Shortcut */}
+      <View style={styles.helpCard}>
+        <View style={styles.helpItem}>
+          <IconSymbol size={24} name="gearshape.fill" color="#228B22" />
+          <View style={styles.helpText}>
+            <Text style={styles.helpTitle}>Konfigurasi Tiket</Text>
+            <Text style={{ color: '#666', fontSize: 14, marginTop: 4 }}>
+              Atur copywriting dan format tiket parkir. Buka tab Settings untuk mengkonfigurasi.
+            </Text>
+          </View>
+        </View>
+      </View>
+
       {/* Modal untuk daftar printer */}
       <Modal
         visible={showDeviceList}

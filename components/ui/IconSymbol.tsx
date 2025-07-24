@@ -24,6 +24,7 @@ const MAPPING = {
   'textformat.123': 'text-fields',
   'dollarsign.circle': 'attach-money',
   'printer': 'print',
+  'printer.fill': 'print',
   'arrow.clockwise': 'refresh',
   'battery.100': 'battery-full',
   'doc.text': 'description',
@@ -31,6 +32,15 @@ const MAPPING = {
   'clock': 'access-time',
   'magnifyingglass': 'search',
   'antenna.radiowaves.left.and.right': 'bluetooth',
+  'gearshape.fill': 'settings',
+  'gearshape': 'settings',
+  'building.2': 'business',
+  'text.bubble': 'chat-bubble',
+  'eye': 'visibility',
+  'eye.fill': 'visibility',
+  'checkmark.circle.fill': 'check-circle',
+  'info.circle': 'info',
+  'calendar': 'event',
 } as IconMapping;
 
 /**

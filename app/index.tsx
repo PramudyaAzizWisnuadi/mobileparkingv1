@@ -1,34 +1,23 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { SplashScreen } from '../components/SplashScreen';
 import { IconSymbol } from '../components/ui/IconSymbol';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !showSplash) {
+    if (!isLoading) {
       if (isAuthenticated) {
         router.replace('/(tabs)');
       } else {
         router.replace('/login');
       }
     }
-  }, [isAuthenticated, isLoading, showSplash]);
+  }, [isAuthenticated, isLoading]);
 
-  const handleSplashFinish = () => {
-    setShowSplash(false);
-  };
-
-  // Show splash screen first
-  if (showSplash) {
-    return <SplashScreen onFinish={handleSplashFinish} />;
-  }
-
-  // Show loading after splash
+  // Show loading while checking authentication
   return (
     <View style={styles.container}>
       {/* Background Design */}

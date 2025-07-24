@@ -17,39 +17,39 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
   const { login } = useAuth();
 
   const handleEmailChange = (text: string) => {
     setEmail(text);
-    if (errorMessage) {
-      setErrorMessage(''); // Clear error when user starts typing
-    }
   };
 
   const handlePasswordChange = (text: string) => {
     setPassword(text);
-    if (errorMessage) {
-      setErrorMessage(''); // Clear error when user starts typing
-    }
   };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setErrorMessage('Harap isi semua field yang diperlukan');
+      Alert.alert(
+        '⚠️ Data Tidak Lengkap',
+        'Harap isi email dan password untuk melanjutkan.',
+        [{ text: 'OK', style: 'default' }]
+      );
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      setErrorMessage('Format email tidak valid');
+      Alert.alert(
+        '📧 Format Email Salah',
+        'Pastikan email yang Anda masukkan memiliki format yang benar.\n\nContoh: user@email.com',
+        [{ text: 'OK', style: 'default' }]
+      );
       return;
     }
 
     try {
       setIsLoading(true);
-      setErrorMessage(''); // Clear previous errors
       
       const response = await login({
         email: email.trim(),
@@ -58,10 +58,48 @@ export default function LoginScreen() {
 
       if (response.success) {
         // Success will be handled by AuthContext redirect
-        setErrorMessage('');
+        Alert.alert(
+          '✅ Login Berhasil',
+          'Selamat datang di Parkir App!',
+          [{ text: 'OK', style: 'default' }]
+        );
       }
     } catch (error: any) {
-      setErrorMessage(error.message || 'Terjadi kesalahan saat login');
+      // Show error as user-friendly alert
+      let title = '❌ Login Gagal';
+      let message = error.message || 'Terjadi kesalahan saat login';
+      
+      // Customize alert based on error type
+      if (message.includes('koneksi') || message.includes('terhubung')) {
+        title = '🌐 Masalah Koneksi';
+        message = 'Tidak dapat terhubung ke server.\n\nPastikan koneksi internet Anda stabil dan coba lagi.';
+      } else if (message.includes('email') || message.includes('password')) {
+        title = '🔐 Data Login Salah';
+        message = 'Email atau password yang Anda masukkan salah.\n\nSilakan periksa kembali dan coba lagi.';
+      } else if (message.includes('server') || message.includes('gangguan')) {
+        title = '🔧 Server Bermasalah';
+        message = 'Server sedang mengalami gangguan.\n\nSilakan coba lagi dalam beberapa menit.';
+      } else if (message.includes('sesi') || message.includes('berakhir')) {
+        title = '⏰ Sesi Berakhir';
+        message = 'Sesi login Anda telah berakhir.\n\nSilakan login kembali untuk melanjutkan.';
+      }
+      
+      Alert.alert(
+        title,
+        message,
+        [
+          { 
+            text: 'Coba Lagi', 
+            style: 'default',
+            onPress: () => {
+              // Clear form if needed
+              if (title.includes('Data Login Salah')) {
+                setPassword('');
+              }
+            }
+          }
+        ]
+      );
     } finally {
       setIsLoading(false);
     }
@@ -108,13 +146,6 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Error Message Display */}
-          {errorMessage ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            </View>
-          ) : null}
-
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
             onPress={handleLogin}
@@ -143,7 +174,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F8FFF8',
   },
   scrollContent: {
     flexGrow: 1,
@@ -152,82 +183,82 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     backgroundColor: '#ffffff',
-    borderRadius: 10,
+    borderRadius: 15,
     padding: 30,
-    shadowColor: '#000',
+    shadowColor: '#228B22',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E8F5E8',
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 10,
-    color: '#333',
+    marginBottom: 8,
+    color: '#228B22',
+    letterSpacing: 1,
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 30,
-    color: '#666',
+    color: '#DC143C',
+    fontWeight: '500',
   },
   inputContainer: {
     marginBottom: 20,
   },
   label: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 8,
-    color: '#333',
+    color: '#228B22',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E8F5E8',
+    borderRadius: 10,
     padding: 15,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    borderColor: '#f44336',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
-  },
-  errorText: {
-    color: '#c62828',
-    fontSize: 14,
-    textAlign: 'center',
-    fontWeight: '500',
+    backgroundColor: '#F8FFF8',
+    color: '#333',
   },
   loginButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 15,
+    backgroundColor: '#228B22',
+    borderRadius: 10,
+    padding: 18,
     alignItems: 'center',
     marginTop: 10,
+    shadowColor: '#228B22',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   loginButtonDisabled: {
     backgroundColor: '#cccccc',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   loginButtonText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
   forgotPasswordButton: {
     marginTop: 20,
     alignItems: 'center',
   },
   forgotPasswordText: {
-    color: '#007AFF',
+    color: '#DC143C',
     fontSize: 16,
+    fontWeight: '500',
   },
 });

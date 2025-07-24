@@ -1,15 +1,18 @@
+import * as Print from 'expo-print';
+import { shareAsync } from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { apiService, ParkingTransaction, VehicleType } from '../services/api';
+import { getPrinterConfig } from './PrinterSettings';
 import { IconSymbol } from './ui/IconSymbol';
 
 interface CreateParkingTransactionProps {
@@ -34,27 +37,33 @@ export const CreateParkingTransaction: React.FC<CreateParkingTransactionProps> =
   const loadVehicleTypes = async () => {
     try {
       setIsLoadingVehicleTypes(true);
+      console.log('🔄 Loading vehicle types...');
+      
       const types = await apiService.getVehicleTypes();
+      console.log('✅ Vehicle types loaded:', types);
       
-      // Sort vehicle types: Motor first, then others
-      const sortedTypes = types.sort((a, b) => {
-        const aIsMotor = a.name.toLowerCase().includes('motor') || a.name.toLowerCase().includes('sepeda motor');
-        const bIsMotor = b.name.toLowerCase().includes('motor') || b.name.toLowerCase().includes('sepeda motor');
-        
-        if (aIsMotor && !bIsMotor) return -1; // Motor comes first
-        if (!aIsMotor && bIsMotor) return 1;  // Motor comes first
-        return a.name.localeCompare(b.name);  // Alphabetical for same type
-      });
+      // Sort vehicle types by ID ascending
+      const sortedTypes = types.sort((a, b) => a.id - b.id);
       
+      console.log('📋 Sorted vehicle types (by ID ASC):', sortedTypes);
       setVehicleTypes(sortedTypes);
+      
       if (sortedTypes.length > 0) {
         setSelectedVehicleTypeId(sortedTypes[0].id);
+        console.log('🎯 Default selected vehicle type:', sortedTypes[0]);
       }
     } catch (error: any) {
+      console.error('❌ Error loading vehicle types:', error);
       Alert.alert('Error', `Gagal memuat jenis kendaraan: ${error.message}`);
     } finally {
       setIsLoadingVehicleTypes(false);
     }
+  };
+
+  const refreshVehicleTypes = async () => {
+    console.log('🔄 Manual refresh vehicle types...');
+    await loadVehicleTypes();
+    Alert.alert('✅ Refresh Berhasil', 'Data jenis kendaraan telah diperbarui!');
   };
 
   const handleCreateTransaction = async () => {
@@ -76,19 +85,9 @@ export const CreateParkingTransaction: React.FC<CreateParkingTransactionProps> =
       // Auto print ticket after successful creation
       await printParkingTicket(response.data);
 
-      Alert.alert(
-        'Berhasil',
-        'Transaksi parkir berhasil dibuat dan tiket sedang dicetak!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              onTransactionCreated?.(response.data);
-              resetForm();
-            }
-          }
-        ]
-      );
+      // Callback dan reset form setelah print selesai
+      onTransactionCreated?.(response.data);
+      resetForm();
     } catch (error: any) {
       Alert.alert('Error', `Gagal membuat transaksi: ${error.message}`);
     } finally {
@@ -117,43 +116,299 @@ export const CreateParkingTransaction: React.FC<CreateParkingTransactionProps> =
 
   const printParkingTicket = async (transactionData: any) => {
     try {
-      // Format tiket untuk keperluan printing
+      // Load printer configuration
+      const printerConfig = await getPrinterConfig();
+      
+      // Format tiket untuk keperluan printing - disesuaikan dengan versi web
       const vehicleType = getSelectedVehicleType();
       const currentDate = new Date();
       
-      const ticketContent = `
-================================
-        TIKET PARKIR
-================================
-No. Transaksi: ${transactionData.id || 'N/A'}
-Tanggal: ${currentDate.toLocaleDateString('id-ID')}
-Jam Masuk: ${currentDate.toLocaleTimeString('id-ID')}
+      // Generate nomor tiket otomatis - prioritas field ticket_number atau no_tiket dari API
+      const ticketNumber = transactionData.ticket_number || 
+                          transactionData.no_tiket || 
+                          transactionData.transaction_number ||
+                          `PKR${String(transactionData.id).padStart(6, '0')}` ||
+                          `PKR${Date.now().toString().slice(-6)}`;
 
-Jenis Kendaraan: ${vehicleType?.name || '-'}
-Plat Nomor: ${licensePlate || 'Tidak ada'}
-
-Tarif Flat: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}
-
-================================
-   Simpan tiket ini dengan baik
-     Tunjukkan saat keluar
-================================
+      // Create HTML content with optimized thermal printer layout
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Tiket Parkir</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 4mm;
+              font-size: 11px;
+              line-height: 1.2;
+              color: #000;
+              background: #fff;
+              width: 50mm;
+            }
+            
+            .ticket {
+              width: 100%;
+              text-align: center;
+            }
+            
+            .header {
+              text-align: center;
+              margin-bottom: 8px;
+              border-bottom: 1px solid #000;
+              padding-bottom: 6px;
+            }
+            
+            .company-name {
+              font-size: 14px;
+              font-weight: bold;
+              margin: 0 0 3px 0;
+            }
+            
+            .ticket-title {
+              font-size: 12px;
+              font-weight: bold;
+              margin: 3px 0;
+            }
+            
+            .company-info {
+              font-size: 9px;
+              margin: 6px 0;
+              text-align: center;
+              line-height: 1.1;
+            }
+            
+            .separator {
+              border-top: 1px dashed #000;
+              margin: 6px 0;
+              height: 0;
+            }
+            
+            .info-section {
+              text-align: left;
+              margin: 8px 0;
+            }
+            
+            .info-table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 10px;
+            }
+            
+            .info-table td {
+              padding: 1px 0;
+              vertical-align: top;
+            }
+            
+            .info-table .label {
+              width: 40%;
+              font-weight: bold;
+            }
+            
+            .info-table .value {
+              width: 60%;
+              text-align: right;
+              font-weight: normal;
+            }
+            
+            .amount-section {
+              text-align: center;
+              margin: 8px 0;
+              padding: 6px 0;
+              border-top: 1px dashed #000;
+              border-bottom: 1px dashed #000;
+              font-weight: bold;
+              font-size: 12px;
+            }
+            
+            .footer {
+              text-align: center;
+              font-size: 8px;
+              margin-top: 8px;
+              line-height: 1.1;
+            }
+            
+            .footer p {
+              margin: 1px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ticket">
+            <div class="header">
+              <div class="company-name">${printerConfig.companyName}</div>
+              <div class="ticket-title">TIKET PARKIR</div>
+            </div>
+            
+            <div class="company-info">
+              ${printerConfig.address}<br/>
+              ${printerConfig.phone}
+            </div>
+            
+            <div class="separator"></div>
+            
+            <div class="info-section">
+              <table class="info-table">
+                <tr>
+                  <td class="label">No. Tiket</td>
+                  <td class="value">${ticketNumber}</td>
+                </tr>
+                ${printerConfig.showDateTime ? `
+                <tr>
+                  <td class="label">Tanggal</td>
+                  <td class="value">${currentDate.toLocaleDateString('id-ID', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  })}</td>
+                </tr>
+                <tr>
+                  <td class="label">Waktu</td>
+                  <td class="value">${currentDate.toLocaleTimeString('id-ID', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                  <td class="label">Kendaraan</td>
+                  <td class="value">${vehicleType?.name || '-'}</td>
+                </tr>
+                ${printerConfig.showLicensePlate && licensePlate ? `
+                <tr>
+                  <td class="label">Plat</td>
+                  <td class="value">${licensePlate}</td>
+                </tr>
+                ` : ''}
+              </table>
+            </div>
+            
+            ${printerConfig.showTariff ? `
+            <div class="amount-section">
+              Tarif: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}
+            </div>
+            ` : ''}
+            
+            <div class="separator"></div>
+            
+            <div class="footer">
+              ${printerConfig.footerMessage1 ? `<p>${printerConfig.footerMessage1}</p>` : ''}
+              ${printerConfig.footerMessage2 ? `<p>${printerConfig.footerMessage2}</p>` : ''}
+              ${printerConfig.footerMessage3 ? `<p>${printerConfig.footerMessage3}</p>` : ''}
+              ${printerConfig.showDateTime ? `
+              <p>${currentDate.toLocaleString('id-ID', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}</p>
+              ` : ''}
+            </div>
+          </div>
+        </body>
+        </html>
       `;
 
-      // Untuk development - log tiket content
-      console.log('Printing ticket:', ticketContent);
+      // Print using expo-print with thermal printer optimized settings
+      
+      try {
+        // Create PDF from HTML with thermal printer settings
+        const { uri } = await Print.printToFileAsync({
+          html: htmlContent,
+          width: 168, // 58mm in points (58mm * 2.83 = 164 points, rounded to 168)
+          height: 400, // Longer height for content
+          margins: {
+            left: 8,
+            right: 8,
+            top: 8,
+            bottom: 8,
+          },
+        });
 
-      Alert.alert(
-        'Berhasil',
-        'Tiket parkir berhasil dibuat!\n\nTiket akan dicetak melalui printer thermal 58mm.',
-        [{ text: 'OK' }]
-      );
+        // Try to print directly
+        await Print.printAsync({
+          uri: uri,
+        });
+
+        // If we reach here, print was successful or user didn't cancel
+
+        Alert.alert(
+          '✅ Transaksi & Tiket Berhasil',
+          `Transaksi parkir berhasil dibuat!\n\nTiket dengan nomor ${ticketNumber} telah berhasil dicetak dengan format optimal untuk thermal printer 58mm.`,
+          [{ text: 'OK' }]
+        );
+        
+      } catch (printError) {
+        console.error('Print process error:', printError);
+        
+        // Try to share as fallback
+        try {
+          const { uri } = await Print.printToFileAsync({
+            html: htmlContent,
+            width: 168, // 58mm in points
+            height: 400,
+            margins: {
+              left: 8,
+              right: 8,
+              top: 8,
+              bottom: 8,
+            },
+          });
+          
+          await shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Tiket Parkir - Pilih Printer atau Simpan'
+          });
+          
+          Alert.alert(
+            '✅ Transaksi Berhasil & PDF Dibuat',
+            `Transaksi parkir berhasil dibuat!\n\nTiket dengan nomor ${ticketNumber} telah dibuat sebagai PDF. Anda dapat mencetak atau menyimpannya.`,
+            [{ text: 'OK' }]
+          );
+          
+        } catch (shareError) {
+          console.error('Share error:', shareError);
+          
+          // Final fallback: Show formatted text
+          const textTicket = `
+MD MALL BLORA
+TIKET PARKIR
+
+No. Tiket: ${ticketNumber}
+Tanggal: ${currentDate.toLocaleDateString('id-ID')}
+Jam: ${currentDate.toLocaleTimeString('id-ID')}
+Jenis: ${vehicleType?.name || '-'}
+Plat: ${licensePlate || '-'}
+Tarif: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}
+
+PERHATIAN:
+• Simpan tiket ini dengan baik
+• Tunjukkan saat keluar parkir
+          `;
+
+          Alert.alert(
+            '✅ Transaksi Berhasil',
+            `Berikut data tiket untuk dicatat:\n${textTicket}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
       
     } catch (error) {
       console.error('Print error:', error);
       Alert.alert(
-        'Warning', 
-        'Transaksi berhasil dibuat, tetapi gagal mencetak tiket.\n\nPastikan printer terhubung dan kertas tersedia.'
+        '⚠️ Peringatan Printer', 
+        'Transaksi berhasil dibuat, tetapi terjadi masalah saat mencetak tiket.\n\nPastikan printer terhubung dan coba print ulang.',
+        [
+          { text: 'Batal' },
+          { 
+            text: 'Coba Lagi', 
+            onPress: () => printParkingTicket(transactionData)
+          }
+        ]
       );
     }
   };
@@ -181,6 +436,17 @@ Tarif Flat: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}
           <View style={styles.labelContainer}>
             <IconSymbol size={18} name="car.fill" color="#333" />
             <Text style={styles.label}>Jenis Kendaraan *</Text>
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={refreshVehicleTypes}
+              disabled={isLoadingVehicleTypes}
+            >
+              {isLoadingVehicleTypes ? (
+                <ActivityIndicator size="small" color="#228B22" />
+              ) : (
+                <IconSymbol size={16} name="arrow.clockwise" color="#228B22" />
+              )}
+            </TouchableOpacity>
           </View>
           <View style={styles.vehicleTypeContainer}>
             {vehicleTypes.map((type) => (
@@ -247,8 +513,8 @@ Tarif Flat: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}
         {getSelectedVehicleType() && (
           <View style={styles.priceInfo}>
             <View style={styles.priceInfoContent}>
-              <IconSymbol size={18} name="dollarsign.circle" color="#228B22" />
-              <Text style={styles.priceLabel}>Tarif Flat:</Text>
+              <IconSymbol size={18} name="banknote" color="#228B22" />
+              <Text style={styles.priceLabel}>Tarif</Text>
             </View>
             <Text style={styles.priceValue}>
               {formatCurrency(getSelectedVehicleType()!.flat_rate)}
@@ -329,6 +595,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 8,
+  },
+  refreshButton: {
+    marginLeft: 'auto',
+    padding: 4,
   },
   label: {
     fontSize: 16,

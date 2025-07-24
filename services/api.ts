@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://192.168.9.76:8000/api/v1';
+const API_BASE_URL = 'http://testapi.mdgroup.id/api/v1';
 
 export interface LoginCredentials {
   email: string;
@@ -111,7 +111,12 @@ class ApiService {
       
       // Handle network errors
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba lagi.');
+      }
+      
+      // Handle timeout errors  
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Koneksi terputus saat login. Periksa jaringan internet Anda.');
       }
       
       throw error;
@@ -134,6 +139,8 @@ class ApiService {
       }
     } catch (error) {
       console.error('Logout error:', error);
+      // Don't throw error on logout - just log it
+      // User should still be logged out locally even if server call fails
     } finally {
       await this.removeToken();
     }
@@ -143,6 +150,10 @@ class ApiService {
     try {
       const token = await this.getToken();
       
+      if (!token) {
+        throw new Error('Sesi Anda telah berakhir. Silakan login kembali.');
+      }
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers: {
@@ -153,15 +164,56 @@ class ApiService {
         },
       });
 
+      const data = await response.json();
+
       if (response.status === 401) {
         // Token expired or invalid
         await this.removeToken();
-        throw new Error('Authentication failed');
+        throw new Error('Sesi Anda telah berakhir. Silakan login kembali untuk melanjutkan.');
       }
 
-      return await response.json();
+      if (response.status === 403) {
+        throw new Error('Anda tidak memiliki akses untuk melakukan tindakan ini.');
+      }
+
+      if (response.status === 404) {
+        throw new Error('Data yang diminta tidak ditemukan.');
+      }
+
+      if (response.status === 422) {
+        if (data.errors) {
+          const errorMessages = Object.values(data.errors).flat();
+          throw new Error(`Data tidak valid: ${errorMessages.join(', ')}`);
+        }
+        throw new Error('Data yang dikirim tidak valid. Periksa kembali form Anda.');
+      }
+
+      if (response.status === 429) {
+        throw new Error('Terlalu banyak permintaan. Harap tunggu sebentar sebelum mencoba lagi.');
+      }
+
+      if (response.status >= 500) {
+        throw new Error('Server sedang mengalami gangguan. Coba lagi dalam beberapa menit.');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Terjadi kesalahan saat memproses permintaan Anda.');
+      }
+
+      return data;
     } catch (error) {
       console.error('Authenticated request error:', error);
+      
+      // Handle network errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba lagi.');
+      }
+      
+      // Handle timeout errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Koneksi terputus. Periksa jaringan internet Anda.');
+      }
+      
       throw error;
     }
   }
@@ -173,18 +225,32 @@ class ApiService {
 
   async getVehicleTypes(): Promise<VehicleType[]> {
     try {
-      const response = await this.makeAuthenticatedRequest('/vehicle-types', {
+      console.log('🌐 Fetching vehicle types from API...');
+      const response = await this.makeAuthenticatedRequest('/vehicle-types?order_by=id&order_direction=asc', {
         method: 'GET',
       });
 
+      console.log('📡 API Response for vehicle types:', response);
+
       if (response.success && response.data) {
+        console.log('✅ Vehicle types received:', response.data.length, 'items');
         return response.data;
       }
 
-      throw new Error(response.message || 'Failed to fetch vehicle types');
-    } catch (error) {
-      console.error('Get vehicle types error:', error);
-      throw error;
+      throw new Error('Gagal memuat daftar jenis kendaraan. Silakan coba lagi.');
+    } catch (error: any) {
+      console.error('❌ Get vehicle types error:', error);
+      
+      // Handle specific cases for vehicle types
+      if (error.message.includes('tidak dapat terhubung') || error.message.includes('koneksi')) {
+        throw new Error('Tidak dapat memuat jenis kendaraan. Periksa koneksi internet Anda.');
+      }
+      
+      if (error.message.includes('server') || error.message.includes('gangguan')) {
+        throw new Error('Server sedang bermasalah. Jenis kendaraan tidak dapat dimuat saat ini.');
+      }
+      
+      throw new Error(error.message || 'Gagal memuat jenis kendaraan. Silakan restart aplikasi dan coba lagi.');
     }
   }
 
@@ -199,10 +265,28 @@ class ApiService {
         return response;
       }
 
-      throw new Error(response.message || 'Failed to create parking transaction');
-    } catch (error) {
+      throw new Error('Gagal membuat transaksi parkir. Silakan coba lagi.');
+    } catch (error: any) {
       console.error('Create parking transaction error:', error);
-      throw error;
+      
+      // Handle specific cases for parking transactions
+      if (error.message.includes('tidak dapat terhubung') || error.message.includes('koneksi')) {
+        throw new Error('Tidak dapat membuat transaksi. Periksa koneksi internet Anda dan coba lagi.');
+      }
+      
+      if (error.message.includes('server') || error.message.includes('gangguan')) {
+        throw new Error('Server sedang bermasalah. Transaksi tidak dapat diproses saat ini.');
+      }
+      
+      if (error.message.includes('berakhir') || error.message.includes('login')) {
+        throw new Error('Sesi Anda telah berakhir. Silakan login kembali untuk membuat transaksi.');
+      }
+      
+      if (error.message.includes('tidak valid')) {
+        throw new Error('Data transaksi tidak valid. Periksa kembali jenis kendaraan dan plat nomor.');
+      }
+      
+      throw new Error(error.message || 'Gagal membuat transaksi parkir. Pastikan semua data sudah benar dan coba lagi.');
     }
   }
 }
