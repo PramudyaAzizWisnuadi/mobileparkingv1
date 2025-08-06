@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService, ParkingTransaction, VehicleType } from '../services/api';
 import { getPrinterConfig } from './PrinterSettings';
 import { IconSymbol } from './ui/IconSymbol';
@@ -112,6 +113,48 @@ export const CreateParkingTransaction: React.FC<CreateParkingTransactionProps> =
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const testPrinterConfig = async () => {
+    try {
+      // Debug storage values
+      const savedPrinterSettings = await AsyncStorage.getItem('printer_settings');
+      const savedApiUrl = await AsyncStorage.getItem('api_url');
+      
+      console.log('🗄️ Raw Storage Values:');
+      console.log('printer_settings:', savedPrinterSettings);
+      console.log('api_url:', savedApiUrl);
+      
+      const printerConfig = await getPrinterConfig();
+      
+      const configInfo = `
+🖨️ Debug Konfigurasi Printer:
+
+🗄️ Storage Values:
+• printer_settings: ${savedPrinterSettings ? 'ADA' : 'TIDAK ADA'}
+• api_url: ${savedApiUrl ? 'ADA' : 'TIDAK ADA'}
+
+✅ Pengaturan Tampilan:
+• Nomor Tiket: ${printerConfig.showTicketNumber ? 'TAMPIL ❌' : 'SEMBUNYI ✅'}
+• Tanggal/Waktu: ${printerConfig.showDateTime ? 'TAMPIL' : 'SEMBUNYI'}  
+• Nomor Plat: ${printerConfig.showLicensePlate ? 'TAMPIL' : 'SEMBUNYI'}
+• Tarif: ${printerConfig.showTariff ? 'TAMPIL' : 'SEMBUNYI'}
+
+📋 Info Perusahaan:
+• Nama: ${printerConfig.companyName}
+• Alamat: ${printerConfig.address}
+• Telepon: ${printerConfig.phone}
+
+💬 Footer:
+• Baris 1: ${printerConfig.footerMessage1}
+• Baris 2: ${printerConfig.footerMessage2}  
+• Baris 3: ${printerConfig.footerMessage3}
+      `;
+      
+      Alert.alert('🔧 Debug Konfigurasi', configInfo.trim(), [{ text: 'OK' }]);
+    } catch (error) {
+      Alert.alert('❌ Error', 'Gagal mendapatkan konfigurasi printer: ' + error);
+    }
   };
 
   const printParkingTicket = async (transactionData: any) => {
@@ -251,10 +294,12 @@ export const CreateParkingTransaction: React.FC<CreateParkingTransactionProps> =
             
             <div class="info-section">
               <table class="info-table">
+                ${printerConfig.showTicketNumber ? `
                 <tr>
                   <td class="label">No. Tiket</td>
                   <td class="value">${ticketNumber}</td>
                 </tr>
+                ` : ''}
                 ${printerConfig.showDateTime ? `
                 <tr>
                   <td class="label">Tanggal</td>
@@ -374,15 +419,15 @@ export const CreateParkingTransaction: React.FC<CreateParkingTransactionProps> =
           
           // Final fallback: Show formatted text
           const textTicket = `
-MD MALL BLORA
+${printerConfig.companyName}
 TIKET PARKIR
 
-No. Tiket: ${ticketNumber}
-Tanggal: ${currentDate.toLocaleDateString('id-ID')}
-Jam: ${currentDate.toLocaleTimeString('id-ID')}
+${printerConfig.showTicketNumber ? `No. Tiket: ${ticketNumber}` : ''}
+${printerConfig.showDateTime ? `Tanggal: ${currentDate.toLocaleDateString('id-ID')}
+Jam: ${currentDate.toLocaleTimeString('id-ID')}` : ''}
 Jenis: ${vehicleType?.name || '-'}
-Plat: ${licensePlate || '-'}
-Tarif: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}
+${printerConfig.showLicensePlate && licensePlate ? `Plat: ${licensePlate}` : ''}
+${printerConfig.showTariff ? `Tarif: ${vehicleType ? formatCurrency(vehicleType.flat_rate) : '-'}` : ''}
 
 PERHATIAN:
 • Simpan tiket ini dengan baik
@@ -545,6 +590,18 @@ PERHATIAN:
           <View style={styles.buttonContent}>
             <IconSymbol size={18} name="arrow.clockwise" color="#DC143C" />
             <Text style={styles.resetButtonText}>Reset Form</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Debug button untuk test konfigurasi printer */}
+        <TouchableOpacity
+          style={[styles.resetButton, { borderColor: '#FF9500', marginTop: 10 }]}
+          onPress={testPrinterConfig}
+          disabled={isLoading}
+        >
+          <View style={styles.buttonContent}>
+            <IconSymbol size={18} name="info.circle" color="#FF9500" />
+            <Text style={[styles.resetButtonText, { color: '#FF9500' }]}>Debug Config</Text>
           </View>
         </TouchableOpacity>
       </View>

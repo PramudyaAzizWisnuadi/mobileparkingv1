@@ -1,18 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DEFAULT_API_BASE_URL = 'https://testapi.mdgroup.id/api/v1';
+const DEFAULT_API_BASE_URL = 'http://testapi.mdgroup.id/api/v1';
 
 // Function to get API base URL from settings
 async function getApiBaseUrl(): Promise<string> {
   try {
     const savedApiUrl = await AsyncStorage.getItem('api_url');
-    
     if (savedApiUrl && savedApiUrl.trim()) {
       // Remove trailing slash if present
-      const cleanUrl = savedApiUrl.replace(/\/$/, '');
-      return cleanUrl;
+      return savedApiUrl.replace(/\/$/, '');
     }
-    
     return DEFAULT_API_BASE_URL;
   } catch (error) {
     console.warn('Failed to get API URL from settings:', error);
@@ -33,7 +30,6 @@ export interface LoginResponse {
       id: number;
       name: string;
       email: string;
-      role?: string; // Add role field
     };
   };
   message: string;
@@ -87,6 +83,10 @@ class ApiService {
     try {
       const apiBaseUrl = await getApiBaseUrl();
       const loginUrl = `${apiBaseUrl}/login`;
+      console.log('🚀 Login Request Details:');
+      console.log('URL:', loginUrl);
+      console.log('Method: POST');
+      console.log('Credentials:', credentials);
       
       const response = await fetch(loginUrl, {
         method: 'POST',
@@ -96,6 +96,11 @@ class ApiService {
         },
         body: JSON.stringify(credentials),
       });
+      
+      console.log('📡 Response Details:');
+      console.log('Status:', response.status);
+      console.log('StatusText:', response.statusText);
+      console.log('URL after fetch:', response.url);
 
       const data = await response.json();
 
@@ -249,11 +254,15 @@ class ApiService {
 
   async getVehicleTypes(): Promise<VehicleType[]> {
     try {
+      console.log('🌐 Fetching vehicle types from API...');
       const response = await this.makeAuthenticatedRequest('/vehicle-types?order_by=id&order_direction=asc', {
         method: 'GET',
       });
 
+      console.log('📡 API Response for vehicle types:', response);
+
       if (response.success && response.data) {
+        console.log('✅ Vehicle types received:', response.data.length, 'items');
         return response.data;
       }
 

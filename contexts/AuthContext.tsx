@@ -1,10 +1,12 @@
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService, LoginCredentials, LoginResponse } from '../services/api';
 
 interface User {
   id: number;
   name: string;
   email: string;
+  role?: string; // admin, petugas, etc.
 }
 
 interface AuthContextType {
@@ -14,6 +16,7 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<LoginResponse>;
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
+  setUserRole: (role: string) => void; // Add function to manually set role for testing
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +40,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       setIsAuthenticated(false);
       setIsLoading(false);
+      
+      // Clear stored user data
+      try {
+        await AsyncStorage.removeItem('user_data');
+      } catch (storageError) {
+        console.warn('Failed to clear user data:', storageError);
+      }
     }
   }, []);
 
@@ -46,12 +56,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const authenticated = await apiService.isAuthenticated();
       
       if (authenticated) {
-        // Token exists, set as authenticated
-        // User data will be available from login response
+        // Try to restore user data from storage
+        try {
+          const savedUserData = await AsyncStorage.getItem('user_data');
+          if (savedUserData) {
+            const userData = JSON.parse(savedUserData);
+            setUser(userData);
+          }
+        } catch (storageError) {
+          console.warn('Failed to restore user data:', storageError);
+        }
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
         setUser(null);
+        // Clear stored user data
+        try {
+          await AsyncStorage.removeItem('user_data');
+        } catch (storageError) {
+          console.warn('Failed to clear user data:', storageError);
+        }
       }
     } catch (error) {
       console.error('Auth check error:', error);
@@ -70,6 +94,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.success && response.data) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        
+        // Save user data to storage
+        try {
+          await AsyncStorage.setItem('user_data', JSON.stringify(response.data.user));
+        } catch (storageError) {
+          console.warn('Failed to save user data:', storageError);
+        }
       }
       
       return response;
@@ -82,6 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Function to manually set user role for testing
+  const setUserRole = useCallback((role: string) => {
+    if (user) {
+      const updatedUser = { ...user, role };
+      setUser(updatedUser);
+    }
+  }, [user]);
+
   useEffect(() => {
     checkAuthStatus();
   }, [checkAuthStatus]);
@@ -93,6 +132,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     checkAuthStatus,
+    setUserRole,
   };
 
   return (

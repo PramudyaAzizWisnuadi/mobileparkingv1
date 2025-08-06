@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
@@ -7,9 +7,22 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { user } = useAuth();
+  
+  // Force re-render when user changes
+  const [userState, setUserState] = useState(user);
+  
+  useEffect(() => {
+    setUserState(user);
+  }, [user]);
+
+  // Determine which tabs to show based on user role
+  const isPetugas = userState?.role === 'petugas';
+  const showAllTabs = !isPetugas; // Show all tabs unless explicitly petugas
 
   return (
     <Tabs
@@ -45,6 +58,7 @@ export default function TabLayout() {
         options={{
           title: 'Printer',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="printer" color={color} />,
+          tabBarButton: showAllTabs ? HapticTab : () => null, // Hide tab for petugas
         }}
       />
       <Tabs.Screen
@@ -52,6 +66,7 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
+          tabBarButton: showAllTabs ? HapticTab : () => null, // Hide tab for petugas
         }}
       />
     </Tabs>
