@@ -9,7 +9,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function HomeScreen() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
     Alert.alert(

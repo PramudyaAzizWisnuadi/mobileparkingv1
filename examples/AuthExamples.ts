@@ -10,26 +10,7 @@ import { apiService } from '../services/api';
 
 // Contoh 1: Menggunakan useAuth hook
 export const ExampleAuthUsage = () => {
-  const { user, isAuthenticated, login, logout, isLoading } = useAuth();
-
-  // Login example
-  const handleLogin = async () => {
-    try {
-      await login({
-        email: 'test@example.com',
-        password: 'password123'
-      });
-      console.log('Login berhasil!');
-    } catch (error) {
-      console.error('Login gagal:', error);
-    }
-  };
-
-  // Logout example
-  const handleLogout = async () => {
-    await logout();
-    console.log('Logout berhasil!');
-  };
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   // Contoh mengecek status user
   if (isLoading) {
